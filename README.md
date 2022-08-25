@@ -1,8 +1,5 @@
 # geojson2image
 
-[![Gem Version](http://img.shields.io/gem/v/geojson2image.svg)][gem]
-
-[gem]: https://rubygems.org/gems/geojson2image
 
 Ruby library for generating images from GeoJSON using the [ChunkyPNG library](https://github.com/wvanbergen/chunky_png).
 
