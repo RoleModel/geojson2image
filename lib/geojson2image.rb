@@ -24,9 +24,39 @@ module Geojson2image
         @height_padding = 0
         @global_ratio = 0
         @png = ChunkyPNG::Image.new(@width, @height, @background)
+        set_configs_and_draw
       rescue Oj::ParseError
         puts "GeoJSON parse error"
       end
+    end
+
+    def to_image
+      @png.save(@output)
+    end
+
+    def to_data_url
+      @png.to_data_url
+    end
+
+    private
+
+    def set_configs_and_draw
+      get_points(@parsed_json)
+      get_boundary
+
+      padding_both = @padding * 2
+
+      map_width = @width - padding_both
+      map_height = @height - padding_both
+
+      map_width_ratio = map_width / @max_xy[0]
+      map_height_ratio = map_height / @max_xy[1]
+
+      @global_ratio = [map_width_ratio, map_height_ratio].min
+      @width_padding = (@width - (@global_ratio * @max_xy[0])) / 2
+      @height_padding = (@height - (@global_ratio * @max_xy[1])) / 2
+
+      draw(@parsed_json)
     end
 
     def get_points(json)
@@ -205,18 +235,29 @@ module Geojson2image
           end
         end
 
-        border_points = []
-        json['coordinates'].each do |linestrings|
+        json['coordinates'].each_with_index do |linestrings, position|
+          border_points = []
+
           if linestrings[0] != linestrings[linestrings.count - 1]
             linestrings << linestrings[0]
           end
+
           linestrings.each do |point|
             new_point = transform_point(point)
             border_points << "#{new_point[0]},#{new_point[1]}"
           end
+
+          points = ChunkyPNG::Vector.multiple_from_string(border_points.join(", "))
+
+          if position > 0
+            background = ChunkyPNG::Color::TRANSPARENT
+            tmp_fill = @background
+            hole = ChunkyPNG::Image.new(@width, @height, background).polygon(points, tmp_stroke, tmp_fill)
+            @png.compose!(hole)
+          else
+            @png.polygon(points, tmp_stroke, tmp_fill)
+          end
         end
-        points = ChunkyPNG::Vector.multiple_from_string(border_points.join(", "))
-        @png.polygon(points, tmp_stroke, tmp_fill)
 
       when 'MultiPolygon'
         json['coordinates'].each do |polygon|
@@ -231,26 +272,5 @@ module Geojson2image
         puts "draw - invalid GeoJSON parse error - #{json['type']}"
       end
     end
-
-    def to_image
-      get_points(@parsed_json)
-      get_boundary
-
-      padding_both = @padding * 2
-
-      map_width = @width - padding_both
-      map_height = @height - padding_both
-
-      map_width_ratio = map_width / @max_xy[0]
-      map_height_ratio = map_height / @max_xy[1]
-
-      @global_ratio = [map_width_ratio, map_height_ratio].min
-      @width_padding = (@width - (@global_ratio * @max_xy[0])) / 2
-      @height_padding = (@height - (@global_ratio * @max_xy[1])) / 2
-
-      draw(@parsed_json)
-      @png.save(@output)
-    end
-
   end
 end
